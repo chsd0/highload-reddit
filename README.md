@@ -477,7 +477,7 @@
 
 - PostgreSQL – физические бэкапы (pg_basebackup), логическое копирование (pg_dump)
 - Cassandra – snapshot-based бэкапы, incremental SSTable бэкапы, резервное копирование commitlog
-- Redis – RDB- и AOF-резервные копии, кластерное резервирование
+- Redis – кластерное резервирование
 
 # Список использованных источников
 [^1]: https://www.businessofapps.com/data/reddit-statistics/
