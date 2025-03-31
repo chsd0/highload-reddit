@@ -423,12 +423,12 @@
 ### Индексы
 | Таблица        | Индексы                                                                                                                                                        | Пояснение                                                                                                       |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| posts          | idx_posts_author (author_id), idx_posts_community_new (community_id, created_at), idx_posts_community_best (community_id, upvotes), idx_posts_new (created_at) | Поиск постов пользователя, сообщества. Сортировка постов сообщества по рейтингу. Глобальная лента новых постов. |
-| subscriptions  | idx_subscriptions_user (user_id, community_id), idx_subscriptions_community (community_id)                                                                     | Быстрое получение сообществ, на которые подписан пользователь. Быстрый подсчет подписок сообщества.             |
-| comments       | idx_comments_post_new (post_id, created_at), idx_comments_post_best (post_id, upvotes), id_comments_user (user_id)                                             | Сортировка комментариев к посту по дате создания, рейтингу. Быстрое получение коменнтариев пользователя.        |
-| votes_comments | idx_votes_comments (comment_id)                                                                                                                                | Подсчет голосов для комментария                                                                                 |
-| votes_posts    | idx_votes_posts (post_id)                                                                                                                                      | Подсчет голосов для поста                                                                                       |
-| messages       | idx_messages_conversation (sender_id, receiver_id, created_at), idx_messages_new (receiver_id, created_at)                                                     | Получение переписки между пользователями, входящих сообщений                                                    |
+| posts          | author_id, (community_id, created_at), (community_id, upvotes), created_at | Поиск постов пользователя, сообщества. Сортировка постов сообщества по рейтингу. Глобальная лента новых постов. |
+| subscriptions  | (user_id, community_id),community_id                                                                     | Быстрое получение сообществ, на которые подписан пользователь. Быстрый подсчет подписок сообщества.             |
+| comments       |  (post_id, created_at),  (post_id, upvotes), user_id                                            | Сортировка комментариев к посту по дате создания, рейтингу. Быстрое получение коменнтариев пользователя.        |
+| votes_comments | comment_id                                                                                                                               | Подсчет голосов для комментария                                                                                 |
+| votes_posts    | post_id                                                                                                                                    | Подсчет голосов для поста                                                                                       |
+| messages       | (sender_id, receiver_id, created_at), (receiver_id, created_at)                                                     | Получение переписки между пользователями, входящих сообщений                                                    |
 
 ### Денормализация
 | Таблица           | Денормализованное поле | Источник  | Пояснение                                                                                    |
@@ -449,7 +449,14 @@
 - **search_communities, search_comments, search_users, search_posts:** Elasticsearch является стандартом для полнотекствого поиска в виду быстрого и морфологического поиска, удобства масшатибрования.
 
 ### Шардирование и резервирование СУБД
-
+| Таблица             | Шардирование                     | Резервирование                          | Пояснение                                                                 |
+|---------------------|----------------------------------|------------------------------------------|---------------------------------------------------------------------------|
+| **users**           | По `id` (хеш)      | Multi-AZ Replication     | Шардирование по UUID распределит нагрузку. Глобальные индексы для `username` и `email`. Репликация для отказоустойчивости. |
+| **posts**           | По `community_id` (хеш)              | Multi-AZ Replication (PostgreSQL)        | Шардирование по сообществам для локализации данных.                      |
+| **votes_posts**     | Встроенное в Cassandra          | Cassandra RF=3                | Автоматическое шардирование Cassandra.                                   |
+| **votes_comments**  | Встроенное в Cassandra          | Cassandra RF=3                 | Аналогично votes_posts.                                                  |
+| **comments**        | Встроенное в Cassandra          | Cassandra RF=3                 | Частые вставки/чтения. Cassandra справится с нагрузкой.                  |
+| **session**         | Redis Cluster (по `user_id`)    | Redis Sentinel                 | Шардирование сессий по user_id.                                          |
 ### Клиентские библиотеки / интеграции
 Для взаимодействия с базами данных используются клиентские библиотеки, обеспечивающие высокую производительность и поддержку асинхронных операций:
 
@@ -458,8 +465,19 @@
 * Redis – go-redis
 
 ### Балансировка запросов / мультиплексирование подключений
+Для оптимизации нагрузки на БД реализуются следующие механизмы балансировки:
+
+- PostgreSQL – используется PgBouncer (pooling и multiplexing), HAProxy (балансировка между репликами)
+- Cassandra – балансировка на уровне драйвера (Token-aware routing), встроенные механизмы распределения нагрузки
+- Redis – Redis Cluster с автоматической маршрутизацией запросов, балансировка через Sentinel
 
 ### Схема резервного копирования
+Резервное копирование данных выполняется с учетом особенностей каждой СУБД:
+
+- PostgreSQL – физические бэкапы (pg_basebackup), логическое копирование (pg_dump)
+- Cassandra – snapshot-based бэкапы, incremental SSTable бэкапы, резервное копирование commitlog
+- Redis – RDB- и AOF-резервные копии, кластерное резервирование
+
 # Список использованных источников
 [^1]: https://www.businessofapps.com/data/reddit-statistics/
 [^2]: https://jobera.com/reddit-statistics/
