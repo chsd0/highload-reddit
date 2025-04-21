@@ -499,7 +499,7 @@
 
 
 # 10. Схема проекта
-![](./assets/highload_dz10.svg)
+![](./assets/highload_dz10.png)
 
 # Список использованных источников
 [^1]: https://www.businessofapps.com/data/reddit-statistics/
